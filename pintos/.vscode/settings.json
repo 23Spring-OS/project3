@@ -1,0 +1,11 @@
+{
+    "C_Cpp.dimInactiveRegions": false,
+    "files.associations": {
+        "thread.h": "c",
+        "process.h": "c",
+        "timer.h": "c",
+        "vga.h": "c",
+        "rtc.h": "c",
+        "interrupt.h": "c"
+    }
+}
