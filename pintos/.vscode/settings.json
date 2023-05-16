@@ -6,6 +6,7 @@
         "timer.h": "c",
         "vga.h": "c",
         "rtc.h": "c",
-        "interrupt.h": "c"
+        "interrupt.h": "c",
+        "vaddr.h": "c"
     }
 }

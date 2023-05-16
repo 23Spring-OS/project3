@@ -20,7 +20,7 @@
 
 static thread_func start_process NO_RETURN;
 void parse_filename(char *src, char *dest);
-void construct_esp(char *file_name, void **esp);
+void make_stack(char *file_name, void **esp);
 static bool load (const char *file_name, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
@@ -42,13 +42,17 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  // get the first cmd
+  char *cmd;
+	char *save_ptr;		
+	cmd = strtok_r(file_name, " ", &save_ptr);
 
-  parse_filename(file_name, cmd_name);
-  if (filesys_open(cmd_name) == NULL) {
+  if (filesys_open(cmd) == NULL) {
     return -1;
   }
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (cmd_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (cmd, PRI_DEFAULT, start_process, fn_copy);
   sema_down(&thread_current()->load_lock);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
@@ -69,18 +73,23 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  char cmd_name[500];
+  // char cmd_name[500];
 
-  parse_filename(file_name, cmd_name);
+  // parse_filename(file_name, cmd_name);
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (cmd_name, &if_.eip, &if_.esp);
+
+  // pass first cmd
+  char *cmd;
+	char *save_ptr;		
+	cmd = strtok_r(file_name, " ", &save_ptr);
+  success = load (cmd, &if_.eip, &if_.esp);
 
   if (success) {
-    construct_esp(file_name, &if_.esp);
+    make_stack(file_name, &if_.esp);
   }
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -503,42 +512,24 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
-void parse_filename(char *src, char *dest) {
-  int i;
-  strlcpy(dest, src, strlen(src) + 1);
-  for (i=0; dest[i]!='\0' && dest[i] != ' '; i++);
-  dest[i] = '\0';
-}
+void make_stack(char *file_name, void **esp) {
 
-void construct_esp(char *file_name, void **esp) {
-
-  char ** argv;
-  int argc;
   int total_len;
-  char stored_file_name[256];
-  char *token;
-  char *last;
   int i;
   int len;
   
-  strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
-  token = strtok_r(stored_file_name, " ", &last);
-  argc = 0;
-  /* calculate argc */
-  while (token != NULL) {
-    argc += 1;
-    token = strtok_r(NULL, " ", &last);
-  }
-  argv = (char **)malloc(sizeof(char *) * argc);
-  /* store argv */
-  strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
-  for (i = 0, token = strtok_r(stored_file_name, " ", &last); i < argc; i++, token = strtok_r(NULL, " ", &last)) {
-    len = strlen(token);
-    argv[i] = token;
+  char *argv[64];
+	int argc = 0;
 
-  }
+	char *token;
+	char *save_ptr;
+	token = strtok_r(file_name, " ", &save_ptr);
+	while (token != NULL) {
+		argv[argc] = token;
+		token = strtok_r(NULL, " ", &save_ptr);
+		argc++;
+	}
 
-  /* push argv[argc-1] ~ argv[0] */
   total_len = 0;
   for (i = argc - 1; 0 <= i; i --) {
     len = strlen(argv[i]);
@@ -547,26 +538,23 @@ void construct_esp(char *file_name, void **esp) {
     strlcpy(*esp, argv[i], len + 1);
     argv[i] = *esp;
   }
-  /* push word align */
+
   *esp -= total_len % 4 != 0 ? 4 - (total_len % 4) : 0;
-  /* push NULL */
+
   *esp -= 4;
   **(uint32_t **)esp = 0;
-  /* push address of argv[argc-1] ~ argv[0] */
+
   for (i = argc - 1; 0 <= i; i--) {
     *esp -= 4;
     **(uint32_t **)esp = argv[i];
   }
-  /* push address of argv */
+
   *esp -= 4;
   **(uint32_t **)esp = *esp + 4;
 
-  /* push argc */
   *esp -= 4;
   **(uint32_t **)esp = argc;
   
-  /* push return address */
   *esp -= 4;
   **(uint32_t **)esp = 0;
-  free(argv);
 }
