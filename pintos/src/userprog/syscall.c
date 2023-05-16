@@ -94,17 +94,18 @@ void halt (void) {
 void exit (int status) {
   int i;
   printf("%s: exit(%d)\n", thread_name(), status);
-  thread_current() -> exit_status = status;
+  struct thread *cur = thread_current();
+  cur->exit_status = status;
   for (i = 3; i < 128; i++) {
-      if (thread_current()->fd[i] != NULL) {
+      if (cur->fd[i] != NULL) {
           close(i);
       }
   }
   thread_exit ();
 }
 
-pid_t exec (const char *cmd_line) {
-  return process_execute(cmd_line);
+pid_t exec (const char *file_name) {
+  return process_execute(file_name);
 }
 
 int wait (pid_t pid) {
