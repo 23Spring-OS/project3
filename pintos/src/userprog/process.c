@@ -42,13 +42,17 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  // get the first cmd
+  char *cmd;
+	char *save_ptr;		
+	cmd = strtok_r(file_name, " ", &save_ptr);
 
-  parse_filename(file_name, cmd_name);
-  if (filesys_open(cmd_name) == NULL) {
+  if (filesys_open(cmd) == NULL) {
     return -1;
   }
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (cmd_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (cmd, PRI_DEFAULT, start_process, fn_copy);
   sema_down(&thread_current()->load_lock);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
@@ -69,15 +73,20 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  char cmd_name[500];
+  // char cmd_name[500];
 
-  parse_filename(file_name, cmd_name);
+  // parse_filename(file_name, cmd_name);
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (cmd_name, &if_.eip, &if_.esp);
+
+  // pass first cmd
+  char *cmd;
+	char *save_ptr;		
+	cmd = strtok_r(file_name, " ", &save_ptr);
+  success = load (cmd, &if_.eip, &if_.esp);
 
   if (success) {
     construct_esp(file_name, &if_.esp);
@@ -512,31 +521,43 @@ void parse_filename(char *src, char *dest) {
 
 void construct_esp(char *file_name, void **esp) {
 
-  char ** argv;
-  int argc;
+  // char ** argv;
+  // int argc;
   int total_len;
-  char stored_file_name[256];
-  char *token;
-  char *last;
+  // char stored_file_name[256];
+  // char *token;
+  // char *last;
   int i;
   int len;
   
-  strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
-  token = strtok_r(stored_file_name, " ", &last);
-  argc = 0;
-  /* calculate argc */
-  while (token != NULL) {
-    argc += 1;
-    token = strtok_r(NULL, " ", &last);
-  }
-  argv = (char **)malloc(sizeof(char *) * argc);
-  /* store argv */
-  strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
-  for (i = 0, token = strtok_r(stored_file_name, " ", &last); i < argc; i++, token = strtok_r(NULL, " ", &last)) {
-    len = strlen(token);
-    argv[i] = token;
+  // strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
+  // token = strtok_r(stored_file_name, " ", &last);
+  // argc = 0;
+  // /* calculate argc */
+  // while (token != NULL) {
+  //   argc += 1;
+  //   token = strtok_r(NULL, " ", &last);
+  // }
+  // argv = (char **)malloc(sizeof(char *) * argc);
+  // /* store argv */
+  // strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
+  // for (i = 0, token = strtok_r(stored_file_name, " ", &last); i < argc; i++, token = strtok_r(NULL, " ", &last)) {
+  //   len = strlen(token);
+  //   argv[i] = token;
 
-  }
+  // }
+
+  char *argv[64]; 	// 인자 배열
+	int argc = 0;		// 인자 개수
+
+	char *token;		// 실제 리턴 받을 토큰
+	char *save_ptr;		// 토큰 분리 후 문자열 중 남는 부분
+	token = strtok_r(file_name, " ", &save_ptr);
+	while (token != NULL) {
+		argv[argc] = token;
+		token = strtok_r(NULL, " ", &save_ptr);
+		argc++;
+	}
 
   /* push argv[argc-1] ~ argv[0] */
   total_len = 0;
